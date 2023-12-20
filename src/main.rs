@@ -66,8 +66,8 @@ async fn main() {
     let arguments = std::env::args();
     let arguments = arguments::parse(arguments).unwrap();
 
-    let host = arguments.get::<String>("host").unwrap();
-    let words = arguments.get::<String>("words").unwrap();
+    let host = arguments.get::<String>("host").unwrap_or("".to_string());
+    let words = arguments.get::<String>("words").unwrap_or("".to_string());
     let silent = arguments.get::<bool>("silent").unwrap_or(false);
     let head = arguments.get::<bool>("head").unwrap_or(false);
     let delay = arguments.get::<u64>("delay").unwrap_or(0);
