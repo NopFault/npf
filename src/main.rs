@@ -6,8 +6,8 @@ use std::{thread, time};
 
 fn help() {
     println!("Usage: ");
-    println!("  --host");
     println!(" Provide a full fuzzing address (https://[NPF].site.com || http://site.com/[NPF])");
+    println!("  --host");
     println!("  --word");
     println!(" Provide a fuzzing values file located (words.txt)");
     println!("  --silent true");
@@ -18,6 +18,8 @@ fn help() {
     println!(" Delay for some time for each request");
     println!("  --ua 'custom user agent'");
     println!(" Set custom user agent");
+    println!("  --random-ua 'Use random user agent from pool'");
+    println!(" I have a pool of mixed random user agents");
 }
 
 fn read_lines(filename: String) -> Vec<String> {
@@ -61,20 +63,59 @@ async fn get_contents(url: String, head: bool, ua: &String) -> Vec<String> {
     return result;
 }
 
+fn something_in_code(code: String) -> bool {
+    return code.split("<?php").count() > 1
+        || code.split("api_key").count() > 1
+        || code.split("eval(").count() > 1;
+}
+
+fn get_random_ua() -> String {
+    let ua_list: Vec<&str> = vec![
+        "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36,gzip(gfe)",
+        "Mozilla/5.0 (Linux; Android 11; moto g power (2021)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 12_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1",
+        "Mozilla/5.0 (iPhone9,4; U; CPU iPhone OS 10_0_1 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/10.0 Mobile/14A403 Safari/602.1",
+        "Mozilla/5.0 (Windows Phone 10.0; Android 6.0.1; Microsoft; RM-1152) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Mobile Safari/537.36 Edge/15.15254",
+        "Mozilla/5.0 (Linux; Android 9; AFTWMST22 Build/PS7233; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/88.0.4324.152 Mobile Safari/537.36",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; MAAU; rv:11.0) like Gecko",
+        "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36",
+        "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Trident/4.0; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; .NET4.0C; .NET4.0E)",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:35.0) Gecko/20100101 Firefox/35.0",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.132 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.90 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.74.9 (KHTML, like Gecko) Version/7.0.2 Safari/537.74.9",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.155 Safari/537.36",
+        "Mozilla/5.0 (iPad; CPU OS 7_0_2 like Mac OS X) AppleWebKit/537.51.1 (KHTML, like Gecko) Version/7.0 Mobile/11A501 Safari/9537.53",
+        "Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; Touch; MAARJS; rv:11.0) like Gecko",
+    ];
+
+    let index = (rand::random::<f32>() * ua_list.len() as f32).floor() as usize;
+
+    return ua_list[index].to_string();
+}
+
 #[tokio::main]
 async fn main() {
     let arguments = std::env::args();
     let arguments = arguments::parse(arguments).unwrap();
 
-    let host = arguments.get::<String>("host").unwrap_or("".to_string());
     let words = arguments.get::<String>("words").unwrap_or("".to_string());
+    let host = arguments.get::<String>("host").unwrap_or("".to_string());
     let silent = arguments.get::<bool>("silent").unwrap_or(false);
     let head = arguments.get::<bool>("head").unwrap_or(false);
     let delay = arguments.get::<u64>("delay").unwrap_or(0);
-    let ua = arguments.get::<String>("ua").unwrap_or(
+    let mut ua = arguments.get::<String>("ua").unwrap_or(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0"
             .to_string(),
     );
+    let ua_pool = arguments
+        .get::<bool>("random-ua")
+        .unwrap_or(false);
 
     if host.chars().count() <= 7 || words.chars().count() <= 0 {
         help();
@@ -85,16 +126,37 @@ async fn main() {
     for line in read_lines(words) {
         if line.chars().count() > 0 {
             let url = host.replace("[NPF]", &line);
+
+            if ua_pool == true {
+                ua = get_random_ua();
+            }
             let text = get_contents(url, head, &ua).await;
 
             if silent == true {
                 if reqwest::StatusCode::OK.to_string() == text[0] {
                     let digest = md5::compute(text[1].as_bytes());
-                    println!("{} - {} [{:x}]", line, text[0], digest);
+                    println!(
+                        "{} - {}, [{:x}], Length: {}",
+                        line,
+                        text[0],
+                        digest,
+                        text[1].chars().count()
+                    );
                 }
             } else {
                 let digest = md5::compute(text[1].as_bytes());
-                println!("{} - {} [{:x}]", line, text[0], digest);
+                println!(
+                    "{} - {}, [{:x}], Length: {}",
+                    line,
+                    text[0],
+                    digest,
+                    text[1].chars().count()
+                );
+            }
+
+            let code: String = text[1].to_string();
+            if something_in_code(code) {
+                println!("Find something interesting in source code\n\n")
             }
         }
         if delay > 0 {
