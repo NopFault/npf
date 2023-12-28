@@ -6,19 +6,19 @@ use std::{thread, time};
 
 fn help() {
     println!("Usage: ");
-    println!(" Provide a full fuzzing address (https://[NPF].site.com || http://site.com/[NPF])");
     println!("  --host");
+    println!(" Provide a full fuzzing address (https://[NPF].site.com || http://site.com/[NPF])\n");
     println!("  --word");
-    println!(" Provide a fuzzing values file located (words.txt)");
+    println!(" Provide a fuzzing values file located (words.txt)\n");
     println!("  --silent true");
-    println!(" Display just 200 response.");
+    println!(" Display just 200 response.\n");
     println!("  --head true");
-    println!(" Make HEAD request instead of GET.");
+    println!(" Make HEAD request instead of GET.\n");
     println!("  --delay <u64>");
-    println!(" Delay for some time for each request");
-    println!("  --ua 'custom user agent'");
-    println!(" Set custom user agent");
-    println!("  --random-ua 'Use random user agent from pool'");
+    println!(" Delay for some time for each request\n");
+    println!("  --ua 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0'");
+    println!(" Set custom user agent\n");
+    println!("  --random-ua true");
     println!(" I have a pool of mixed random user agents");
 }
 
