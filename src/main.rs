@@ -10,15 +10,17 @@ fn help() {
     println!(" Provide a full fuzzing address (https://[NPF].site.com || http://site.com/[NPF])\n");
     println!("  --word");
     println!(" Provide a fuzzing values file located (words.txt)\n");
-    println!("  --silent true");
-    println!(" Display just 200 response.\n");
+    println!("  --hide 404,403");
+    println!(" Hide 404 and 403 responses.\n");
     println!("  --head true");
     println!(" Make HEAD request instead of GET.\n");
     println!("  --delay <u64>");
     println!(" Delay for some time for each request\n");
-    println!("  --ua 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0'");
+    println!(
+        "  --ua 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0'"
+    );
     println!(" Set custom user agent\n");
-    println!("  --random-ua true");
+    println!("  --randomua true");
     println!(" I have a pool of mixed random user agents");
 }
 
@@ -104,18 +106,16 @@ async fn main() {
     let arguments = std::env::args();
     let arguments = arguments::parse(arguments).unwrap();
 
-    let words = arguments.get::<String>("words").unwrap_or("".to_string());
-    let host = arguments.get::<String>("host").unwrap_or("".to_string());
-    let silent = arguments.get::<bool>("silent").unwrap_or(false);
+    let silent = arguments.get::<String>("hide").unwrap_or(String::new());
+    let words = arguments.get::<String>("words").unwrap_or(String::new());
+    let host = arguments.get::<String>("host").unwrap_or(String::new());
     let head = arguments.get::<bool>("head").unwrap_or(false);
     let delay = arguments.get::<u64>("delay").unwrap_or(0);
     let mut ua = arguments.get::<String>("ua").unwrap_or(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0"
             .to_string(),
     );
-    let ua_pool = arguments
-        .get::<bool>("random-ua")
-        .unwrap_or(false);
+    let ua_pool = arguments.get::<bool>("randomua").unwrap_or(false);
 
     if host.chars().count() <= 7 || words.chars().count() <= 0 {
         help();
@@ -132,16 +132,27 @@ async fn main() {
             }
             let text = get_contents(url, head, &ua).await;
 
-            if silent == true {
-                if reqwest::StatusCode::OK.to_string() == text[0] {
-                    let digest = md5::compute(text[1].as_bytes());
-                    println!(
-                        "{} - {}, [{:x}], Length: {}",
-                        line,
-                        text[0],
-                        digest,
-                        text[1].chars().count()
-                    );
+            if silent.trim().chars().count() > 2 {
+                let silencer: Vec<String> = silent.clone()
+                    .split(",")
+                    .map(|code| {
+                        reqwest::StatusCode::from_u16(code.parse::<u16>().unwrap_or(0))
+                            .unwrap()
+                            .to_string()
+                    })
+                    .collect();
+
+                if silencer.len() > 0 {
+                    if !silencer.contains(&text[0]) {
+                        let digest = md5::compute(text[1].as_bytes());
+                        println!(
+                            "{} - {}, [{:x}], Length: {}",
+                            line,
+                            text[0],
+                            digest,
+                            text[1].chars().count(),
+                        );
+                    }
                 }
             } else {
                 let digest = md5::compute(text[1].as_bytes());
