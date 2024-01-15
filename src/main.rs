@@ -1,3 +1,4 @@
+use regex::Regex;
 use reqwest::header::USER_AGENT;
 use std::fs::read_to_string;
 use std::path::Path;
@@ -22,6 +23,8 @@ fn help() {
     println!(" Set custom user agent\n");
     println!("  --randomua true");
     println!(" I have a pool of mixed random user agents");
+    println!("  --titles true");
+    println!(" Show page titles");
 }
 
 fn read_lines(filename: String) -> Vec<String> {
@@ -66,9 +69,21 @@ async fn get_contents(url: String, head: bool, ua: &String) -> Vec<String> {
 }
 
 fn something_in_code(code: String) -> bool {
-    return code.split("<?php").count() > 1
+    return code.split("<?").count() > 1
         || code.split("api_key").count() > 1
+        || code.split("api-key").count() > 1
         || code.split("eval(").count() > 1;
+}
+
+fn get_title(code: &String) -> String {
+    let re = Regex::new(r"<title>(.*?)<\/title>").unwrap();
+
+    for capture in re.captures_iter(code.as_str()) {
+        if let Some(title) = capture.get(1) {
+            return title.as_str().to_string();
+        }
+    }
+    return "".to_string();
 }
 
 fn get_random_ua() -> String {
@@ -116,6 +131,7 @@ async fn main() {
             .to_string(),
     );
     let ua_pool = arguments.get::<bool>("randomua").unwrap_or(false);
+    let show_titles = arguments.get::<bool>("titles").unwrap_or(false);
 
     if host.chars().count() <= 7 || words.chars().count() <= 0 {
         help();
@@ -133,7 +149,8 @@ async fn main() {
             let text = get_contents(url, head, &ua).await;
 
             if silent.trim().chars().count() > 2 {
-                let silencer: Vec<String> = silent.clone()
+                let silencer: Vec<String> = silent
+                    .clone()
                     .split(",")
                     .map(|code| {
                         reqwest::StatusCode::from_u16(code.parse::<u16>().unwrap_or(0))
@@ -145,6 +162,9 @@ async fn main() {
                 if silencer.len() > 0 {
                     if !silencer.contains(&text[0]) {
                         let digest = md5::compute(text[1].as_bytes());
+                        if show_titles {
+                            println!("[{}]:", get_title(&text[1]));
+                        }
                         println!(
                             "{} - {}, [{:x}], Length: {}",
                             line,
@@ -152,10 +172,17 @@ async fn main() {
                             digest,
                             text[1].chars().count(),
                         );
+                        if show_titles {
+                            println!("");
+                        }
                     }
                 }
             } else {
                 let digest = md5::compute(text[1].as_bytes());
+
+                if show_titles {
+                    println!("[{}]:", get_title(&text[1]));
+                }
                 println!(
                     "{} - {}, [{:x}], Length: {}",
                     line,
@@ -163,6 +190,9 @@ async fn main() {
                     digest,
                     text[1].chars().count()
                 );
+                if show_titles {
+                    println!("");
+                }
             }
 
             let code: String = text[1].to_string();
